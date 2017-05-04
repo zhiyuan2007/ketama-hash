@@ -15,21 +15,23 @@ func hash_value(server string) uint32 {
 	return h.Sum32()
 }
 
-func ketama_value(v, node_num uint32) []uint32 {
+func ketama_virtual_node_array(v, node_num uint32) []uint32 {
 	step := MAXI / node_num
-	node_v := make([]uint32, node_num)
+	virtual_node := make([]uint32, node_num)
 	var i uint32
+	/*hash again for every virtual node*/
 	for i = 0; i < node_num; i++ {
-		node_v[i] = hash_value(strconv.FormatUint(uint64(v)+uint64(step)*uint64(i), 10))
+		virtual_node[i] = hash_value(strconv.FormatUint(uint64(v)+uint64(step)*uint64(i), 10))
 	}
-	return node_v
+	return virtual_node
 }
 
 func sorted_map(server_hash_map map[uint32]string) []uint32 {
 	all_sorted_hv := make([]uint32, 0)
-	for i, _ := range server_hash_map {
-		all_sorted_hv = append(all_sorted_hv, i)
+	for hashv, _ := range server_hash_map {
+		all_sorted_hv = append(all_sorted_hv, hashv)
 	}
+	/*sort all hash-value for binary search*/
 	sort.Slice(all_sorted_hv, func(i, j int) bool { return all_sorted_hv[i] < all_sorted_hv[j] })
 	return all_sorted_hv
 }
@@ -47,11 +49,11 @@ func binary_search_server(server_hash_map map[uint32]string, all_sorted_hv []uin
 
 func ketama_dispatch_result(servers []string, virtual_node uint32, testdata []string) map[string][]string {
 	server_hash_map := make(map[uint32]string, 0)
-	for _, v := range servers {
-		x := hash_value(v)
-		hash_arr := ketama_value(x, virtual_node)
+	for _, s := range servers {
+		x := hash_value(s)
+		hash_arr := ketama_virtual_node_array(x, virtual_node)
 		for _, iv := range hash_arr {
-			server_hash_map[iv] = v
+			server_hash_map[iv] = s
 		}
 	}
 
@@ -62,11 +64,11 @@ func ketama_dispatch_result(servers []string, virtual_node uint32, testdata []st
 
 	dispatch_result := make(map[string][]string, 0)
 	for i := 0; i < len(testdata); i++ {
-		node := binary_search_server(server_hash_map, all_sorted_hv, testdata[i])
-		dispatch_result[node] = append(dispatch_result[node], testdata[i])
+		server := binary_search_server(server_hash_map, all_sorted_hv, testdata[i])
+		dispatch_result[server] = append(dispatch_result[server], testdata[i])
 	}
 
-	//{"1.1.1.1":[key1, key2, key9], "2.2.2.2":[key4, key8], "3.3.3.3":[key3, key5,key6, key7]}
+	//e.g {"1.1.1.1":[key1, key2, key9], "2.2.2.2":[key4, key8], "3.3.3.3":[key3, key5,key6, key7]}
 	return dispatch_result
 }
 
@@ -105,9 +107,8 @@ func main() {
 	fmt.Println("-----------add a new server------------hit ratio--------------------")
 	for s, key_list := range result_begin {
 		count := 0
-		new_list := result_added[s]
 		for _, key := range key_list {
-			for _, newkey := range new_list {
+			for _, newkey := range result_added[s] {
 				if key == newkey {
 					count += 1
 					break
@@ -121,9 +122,8 @@ func main() {
 	fmt.Println("-----------reduce a server------------hit ratio--------------------")
 	for s, key_list := range result_reduce {
 		count := 0
-		new_list := result_begin[s]
 		for _, key := range key_list {
-			for _, newkey := range new_list {
+			for _, newkey := range result_begin[s] {
 				if key == newkey {
 					count += 1
 					break
